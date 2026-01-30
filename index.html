@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>AgroAI — Демо интеллектуальной аналитики поля</title>
+    <meta
+      name="description"
+      content="Инвесторское статичное демо: ИИ-анализ почвы, выбор поля на карте и прогноз эффекта (урожайность/экономика). Без бэкенда."
+    />
+
+    <link rel="preconnect" href="https://unpkg.com" />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"
+    />
+
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Перейти к содержимому</a>
+
+    <div class="bg-gradient" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <div class="container topbar__inner">
+        <div class="brand" aria-label="AgroAI">
+          <div class="brand__mark" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M12.98 2.2c5.96 0 10.8 4.84 10.8 10.8s-4.84 10.8-10.8 10.8S2.18 18.96 2.18 13 7.02 2.2 12.98 2.2Z"
+                stroke="currentColor"
+                stroke-width="1.6"
+                opacity="0.35"
+              />
+              <path
+                d="M7.6 15.2c2.35-6.4 8.05-9.1 10.8-9.9.5-.14.9.34.72.83-1.11 3.1-3.95 10.3-9.47 12.31-2.28.83-3.71-.5-2.05-3.24Z"
+                fill="currentColor"
+              />
+              <path
+                d="M10.4 16.2c2.2-1.3 4.47-3.56 5.85-6.5"
+                stroke="white"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                opacity="0.9"
+              />
+            </svg>
+          </div>
+          <div class="brand__text">
+            <span class="brand__name">AgroAI</span>
+            <span class="brand__tag">Демо аналитики поля</span>
+          </div>
+        </div>
+
+        <nav class="topnav" aria-label="Основная навигация">
+          <a class="topnav__link" href="#inputs">Ввод данных</a>
+          <a class="topnav__link" href="#map">Карта</a>
+          <a class="topnav__link" href="#results">Результаты</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="container">
+      <section class="hero">
+        <div class="hero__content">
+          <div class="pill">
+            <span class="pill__dot" aria-hidden="true"></span>
+            Статичное демо — работает на GitHub Pages
+          </div>
+          <h1 class="hero__title">ИИ-инсайты по почве и полю для более эффективного земледелия.</h1>
+          <p class="hero__subtitle">
+            Введите показатели почвы, выберите поле на карте, укажите культуру — и запустите имитацию ИИ-анализа с
+            понятным дашбордом для инвесторов: план удобрений, чек‑лист ухода за почвой, рост урожайности и экономия.
+          </p>
+          <div class="hero__cta">
+            <button id="jumpToInputs" class="btn btn--primary" type="button">
+              Начать демо
+              <span class="btn__arrow" aria-hidden="true">→</span>
+            </button>
+            <div class="trust">
+              <div class="trust__item">
+                <span class="trust__label">Время до результата</span>
+                <span class="trust__value">~3 секунды</span>
+              </div>
+              <div class="trust__item">
+                <span class="trust__label">Выход</span>
+                <span class="trust__value">Урожай + Экономика</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="hero__aside" aria-label="Ключевые возможности демо">
+          <div class="card card--glass">
+            <div class="card__head">
+              <div class="chip chip--green">Демо</div>
+              <div class="chip chip--earth">Agri‑tech SaaS</div>
+            </div>
+            <div class="card__body">
+              <div class="mini-kpis">
+                <div class="mini-kpi">
+                  <div class="mini-kpi__label">Выбор поля</div>
+                  <div class="mini-kpi__value">Полигон / Прямоугольник</div>
+                </div>
+                <div class="mini-kpi">
+                  <div class="mini-kpi__label">Модель почвы</div>
+                  <div class="mini-kpi__value">NPK + pH + Влажность</div>
+                </div>
+                <div class="mini-kpi">
+                  <div class="mini-kpi__label">Рекомендации</div>
+                  <div class="mini-kpi__value">Удобрения + План ухода</div>
+                </div>
+              </div>
+              <div class="divider"></div>
+              <div class="note">
+                <div class="note__title">Флоу для инвесторов</div>
+                <div class="note__text">Понятный ввод → наглядный выбор поля → “ИИ” в один клик → убедимый эффект.</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section id="inputs" class="grid">
+        <section class="panel">
+          <header class="panel__header">
+            <h2 class="panel__title">1) Данные по почве</h2>
+            <p class="panel__subtitle">Введите значения из последнего анализа (в демо подойдут примерные).</p>
+          </header>
+
+          <form id="soilForm" class="form" novalidate>
+            <div class="form__grid">
+              <div class="field">
+                <label class="field__label" for="ph">pH почвы</label>
+                <div class="field__control">
+                  <input
+                    id="ph"
+                    name="ph"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.1"
+                    min="3"
+                    max="10"
+                    placeholder="например, 6.4"
+                    required
+                    aria-describedby="phHint"
+                  />
+                </div>
+                <div id="phHint" class="field__hint">Типичный диапазон: 5.5–7.5</div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="n">Азот (N)</label>
+                <div class="field__control">
+                  <input
+                    id="n"
+                    name="n"
+                    type="number"
+                    inputmode="numeric"
+                    step="1"
+                    min="0"
+                    max="250"
+                    placeholder="ppm, например 42"
+                    required
+                    aria-describedby="npkHint"
+                  />
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="p">Фосфор (P)</label>
+                <div class="field__control">
+                  <input
+                    id="p"
+                    name="p"
+                    type="number"
+                    inputmode="numeric"
+                    step="1"
+                    min="0"
+                    max="250"
+                    placeholder="ppm, например 18"
+                    required
+                    aria-describedby="npkHint"
+                  />
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="k">Калий (K)</label>
+                <div class="field__control">
+                  <input
+                    id="k"
+                    name="k"
+                    type="number"
+                    inputmode="numeric"
+                    step="1"
+                    min="0"
+                    max="250"
+                    placeholder="ppm, например 63"
+                    required
+                    aria-describedby="npkHint"
+                  />
+                </div>
+                <div id="npkHint" class="field__hint">Единицы условные (для согласованности демо).</div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="moisture">Влажность (%)</label>
+                <div class="field__control">
+                  <input
+                    id="moisture"
+                    name="moisture"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    placeholder="например, 22.5"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="om">Органическое вещество (%)</label>
+                <div class="field__control">
+                  <input
+                    id="om"
+                    name="om"
+                    type="number"
+                    inputmode="decimal"
+                    step="0.1"
+                    min="0"
+                    max="20"
+                    placeholder="например, 2.8"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="form__footer">
+              <div class="form__status" id="inputStatus" role="status" aria-live="polite">
+                Введите данные почвы, выделите участок на карте и выберите культуру.
+              </div>
+              <button class="btn btn--ghost" type="button" id="fillSample">Подставить пример</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" id="mapPanel">
+          <header class="panel__header">
+            <h2 class="panel__title">2) Выберите участок поля</h2>
+            <p class="panel__subtitle">
+              Кликните и нарисуйте прямоугольник или полигон. Выделенная область подсветится и будет использована в анализе.
+            </p>
+          </header>
+
+          <div class="map-wrap">
+            <div class="map" id="map" aria-label="Интерактивная карта поля"></div>
+            <div class="map-overlay" aria-hidden="true"></div>
+          </div>
+
+          <div class="map-meta">
+            <div class="meta-card">
+              <div class="meta-card__label">Выделение</div>
+              <div class="meta-card__value" id="fieldSelectionLabel">Нет</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-card__label">Центр</div>
+              <div class="meta-card__value" id="fieldCenterLabel">—</div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-card__label">Площадь (оценка)</div>
+              <div class="meta-card__value" id="fieldAreaLabel">—</div>
+            </div>
+            <div class="meta-actions">
+              <button class="btn btn--ghost" type="button" id="clearField">Сбросить выделение</button>
+            </div>
+            <div class="map-attrib" id="mapAttribution">Карта: © участники OpenStreetMap</div>
+          </div>
+        </section>
+
+        <section class="panel panel--full">
+          <header class="panel__header">
+            <h2 class="panel__title">3) Выберите культуру</h2>
+            <p class="panel__subtitle">Можно выбрать только одну. Результат “ИИ” адаптируется под культуру.</p>
+          </header>
+
+          <div class="crop-grid" role="list" aria-label="Выбор культуры">
+            <button class="crop-card" type="button" data-crop="corn" role="listitem" aria-pressed="false">
+              <div class="crop-card__icon" aria-hidden="true">🌽</div>
+              <div class="crop-card__name">Кукуруза</div>
+              <div class="crop-card__meta">Высокая потребность в азоте</div>
+            </button>
+
+            <button class="crop-card" type="button" data-crop="rice" role="listitem" aria-pressed="false">
+              <div class="crop-card__icon" aria-hidden="true">🌾</div>
+              <div class="crop-card__name">Рис</div>
+              <div class="crop-card__meta">Чувствителен к влаге</div>
+            </button>
+
+            <button class="crop-card" type="button" data-crop="wheat" role="listitem" aria-pressed="false">
+              <div class="crop-card__icon" aria-hidden="true">🌿</div>
+              <div class="crop-card__name">Пшеница</div>
+              <div class="crop-card__meta">Сбалансированное питание</div>
+            </button>
+
+            <button class="crop-card" type="button" data-crop="vegetables" role="listitem" aria-pressed="false">
+              <div class="crop-card__icon" aria-hidden="true">🥬</div>
+              <div class="crop-card__name">Овощи</div>
+              <div class="crop-card__meta">Упор на качество и товарность</div>
+            </button>
+          </div>
+
+          <div class="cta-row">
+            <button id="startAnalysis" class="btn btn--primary btn--xl" type="button" disabled>
+              Запустить ИИ‑анализ
+            </button>
+            <div class="cta-hint">
+              <div class="cta-hint__line">
+                <span class="badge" id="readyBadge">Не готово</span>
+                <span id="readyText">Завершите все шаги, чтобы запустить анализ.</span>
+              </div>
+              <div class="cta-hint__line small">
+                Демо имитирует работу ИИ и формирует реалистичные рекомендации.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="results" class="panel panel--full">
+          <header class="panel__header">
+            <h2 class="panel__title">Дашборд результатов ИИ</h2>
+            <p class="panel__subtitle">Понятное резюме результата, которым удобно делиться с руководителями и инвесторами.</p>
+          </header>
+
+          <div id="resultsWrap" class="results results--hidden" aria-live="polite">
+            <div id="loading" class="loading loading--hidden" aria-hidden="true">
+              <div class="loading__bar" aria-hidden="true">
+                <div class="loading__barFill" id="loadingBar"></div>
+              </div>
+              <div class="loading__text">
+                <div class="loading__title">Выполняем анализ AgroAI…</div>
+                <div class="loading__sub" id="loadingSub">Калибруем модель отклика почвы и культуры</div>
+              </div>
+            </div>
+
+            <div id="dashboard" class="dashboard dashboard--hidden" aria-hidden="true">
+              <section class="kpi-row" aria-label="Ключевые показатели">
+                <div class="kpi">
+                  <div class="kpi__label">Оценка роста урожайности</div>
+                  <div class="kpi__value">
+                    <span id="kpiYield">—</span><span class="kpi__unit">%</span>
+                  </div>
+                  <div class="kpi__foot" id="kpiYieldFoot">За счёт баланса питания и управления влагой</div>
+                </div>
+                <div class="kpi">
+                  <div class="kpi__label">Оценка прибыли / экономии</div>
+                  <div class="kpi__value">
+                    <span class="kpi__currency">$</span><span id="kpiProfit">—</span>
+                  </div>
+                  <div class="kpi__foot" id="kpiProfitFoot">Оптимизация затрат на удобрения и снижение потерь</div>
+                </div>
+                <div class="kpi">
+                  <div class="kpi__label">Площадь в анализе</div>
+                  <div class="kpi__value">
+                    <span id="kpiArea">—</span><span class="kpi__unit">га</span>
+                  </div>
+                  <div class="kpi__foot" id="kpiAreaFoot">По выделению на карте</div>
+                </div>
+              </section>
+
+              <section class="results-grid">
+                <div class="result-card">
+                  <div class="result-card__head">
+                    <div class="result-card__title">Рекомендация по удобрениям</div>
+                    <div class="result-card__tag" id="resultCropTag">Культура: —</div>
+                  </div>
+                  <div class="result-card__body">
+                    <p class="result-card__text" id="fertilizerText">—</p>
+                    <div class="result-card__chips" id="fertilizerChips" aria-label="Разбивка по удобрениям">
+                      <!-- chips inserted by JS -->
+                    </div>
+                  </div>
+                </div>
+
+                <div class="result-card">
+                  <div class="result-card__head">
+                    <div class="result-card__title">План ухода за почвой</div>
+                    <div class="result-card__tag">Следующие 30 дней</div>
+                  </div>
+                  <div class="result-card__body">
+                    <ul class="checklist" id="careChecklist">
+                      <!-- checklist inserted by JS -->
+                    </ul>
+                  </div>
+                </div>
+
+                <div class="result-card result-card--wide">
+                  <div class="result-card__head">
+                    <div class="result-card__title">Сводка по полю и почве</div>
+                    <div class="result-card__tag">Входные данные</div>
+                  </div>
+                  <div class="result-card__body">
+                    <div class="summary-grid">
+                      <div class="summary-item">
+                        <div class="summary-item__label">pH почвы</div>
+                        <div class="summary-item__value" id="sumPh">—</div>
+                      </div>
+                      <div class="summary-item">
+                        <div class="summary-item__label">N / P / K</div>
+                        <div class="summary-item__value" id="sumNpk">—</div>
+                      </div>
+                      <div class="summary-item">
+                        <div class="summary-item__label">Влажность</div>
+                        <div class="summary-item__value" id="sumMoisture">—</div>
+                      </div>
+                      <div class="summary-item">
+                        <div class="summary-item__label">Органическое вещество</div>
+                        <div class="summary-item__value" id="sumOm">—</div>
+                      </div>
+                      <div class="summary-item">
+                        <div class="summary-item__label">Центр поля</div>
+                        <div class="summary-item__value" id="sumCenter">—</div>
+                      </div>
+                      <div class="summary-item">
+                        <div class="summary-item__label">Тип выделения</div>
+                        <div class="summary-item__value" id="sumSelection">—</div>
+                      </div>
+                    </div>
+
+                    <div class="result-actions">
+                      <button class="btn btn--ghost" type="button" id="runAgain">Запустить снова</button>
+                      <button class="btn btn--primary" type="button" id="shareSnapshot">
+                        Скопировать сводку
+                      </button>
+                    </div>
+
+                    <div class="toast" id="toast" role="status" aria-live="polite" aria-hidden="true"></div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer__inner">
+        <div class="footer__left">
+          <div class="footer__brand">AgroAI</div>
+          <div class="footer__note">Статичное демо для инвесторов · Без бэкенда · HTML/CSS/JS + Leaflet</div>
+        </div>
+        <div class="footer__right">
+          <a class="footer__link" href="#inputs">К вводу данных</a>
+          <span class="footer__sep" aria-hidden="true">·</span>
+          <a class="footer__link" href="#results">Смотреть результаты</a>
+        </div>
+      </div>
+    </footer>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="./script.js"></script>
+  </body>
+</html>
