@@ -792,12 +792,13 @@
     startBtn.textContent = "Анализируем…";
     updateReadiness();
 
-    // Reveal results section and run a short, premium-feeling loading sequence
-    resultsWrap.classList.remove("results--hidden");
-    setLoadingState(true);
-    $("#results")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    try {
+      // Reveal results section and run a short, premium-feeling loading sequence
+      resultsWrap.classList.remove("results--hidden");
+      setLoadingState(true);
+      $("#results")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    const profile = CROP_PROFILES[selectedCrop];
+      const profile = CROP_PROFILES[selectedCrop];
     const areaHa = selectionAreaM2 / 10000;
     const centerLabel = selectionCenter ? formatLatLng(selectionCenter) : "—";
     const selectionTypeLabel = selectionType || "Area";
@@ -826,7 +827,16 @@
     loadingSub.textContent = steps[0];
 
     await new Promise((resolve) => {
+      let resolved = false;
+      const doResolve = () => {
+        if (resolved) return;
+        resolved = true;
+        loadingBar.style.width = "100%";
+        resolve();
+      };
+      const timeoutId = window.setTimeout(doResolve, totalMs + 800);
       const tick = () => {
+        if (resolved) return;
         const now = performance.now();
         const t = clamp((now - start) / totalMs, 0, 1);
         const eased = 1 - Math.pow(1 - t, 2.4);
@@ -838,8 +848,12 @@
           loadingSub.textContent = steps[stepIdx];
         }
 
-        if (t >= 1) resolve();
-        else requestAnimationFrame(tick);
+        if (t >= 1) {
+          window.clearTimeout(timeoutId);
+          doResolve();
+        } else {
+          requestAnimationFrame(tick);
+        }
       };
       requestAnimationFrame(tick);
     });
@@ -849,22 +863,28 @@
     const carePlan = buildCarePlan(soil, profile, score, rng);
     const outcomes = estimateOutcomes(soil, profile, areaHa, score, rng);
 
-    renderResults({
-      profile,
-      soil,
-      areaHa,
-      centerLabel,
-      selectionTypeLabel,
-      score,
-      fert,
-      carePlan,
-      outcomes,
-    });
-
-    // Restore CTA
-    analysisInFlight = false;
-    startBtn.textContent = "Запустить ИИ‑анализ";
-    updateReadiness();
+      renderResults({
+        profile,
+        soil,
+        areaHa,
+        centerLabel,
+        selectionTypeLabel,
+        score,
+        fert,
+        carePlan,
+        outcomes,
+      });
+    } catch (err) {
+      console.error("Ошибка анализа:", err);
+      setLoadingState(false);
+      setDashboardState(false);
+      showToast("Произошла ошибка. Проверьте ввод и попробуйте снова.");
+    } finally {
+      analysisInFlight = false;
+      startBtn.disabled = false;
+      startBtn.textContent = "Запустить ИИ‑анализ";
+      updateReadiness();
+    }
   };
 
   // -----------------------------
