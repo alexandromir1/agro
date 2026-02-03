@@ -455,37 +455,29 @@
   // AI simulation & results
   // -----------------------------
   const CROP_PROFILES = {
-    corn: {
-      label: "Кукуруза",
-      phRange: [5.8, 7.2],
-      baseRevenuePerHa: 1600,
-      nutrientDemand: { n: 1.15, p: 1.0, k: 1.05 },
-      moistureOpt: [18, 32],
-      omOptMin: 3.0,
-    },
-    rice: {
-      label: "Рис",
-      phRange: [5.6, 7.0],
-      baseRevenuePerHa: 1900,
-      nutrientDemand: { n: 1.0, p: 1.05, k: 0.95 },
-      moistureOpt: [24, 45],
-      omOptMin: 2.5,
-    },
-    wheat: {
-      label: "Пшеница",
-      phRange: [6.0, 7.5],
-      baseRevenuePerHa: 1400,
-      nutrientDemand: { n: 1.0, p: 0.95, k: 0.95 },
-      moistureOpt: [16, 28],
+    potato: {
+      label: "Картофель",
+      phRange: [5.5, 7.0],
+      baseRevenuePerHa: 1800,
+      nutrientDemand: { n: 1.1, p: 1.05, k: 1.2 },
+      moistureOpt: [20, 35],
       omOptMin: 2.8,
     },
-    vegetables: {
-      label: "Овощи",
-      phRange: [6.2, 7.2],
-      baseRevenuePerHa: 3200,
-      nutrientDemand: { n: 0.95, p: 1.1, k: 1.15 },
-      moistureOpt: [20, 34],
-      omOptMin: 3.5,
+    oats: {
+      label: "Овёс",
+      phRange: [5.5, 7.2],
+      baseRevenuePerHa: 1200,
+      nutrientDemand: { n: 1.0, p: 0.95, k: 0.9 },
+      moistureOpt: [18, 30],
+      omOptMin: 2.5,
+    },
+    cabbage: {
+      label: "Капуста",
+      phRange: [6.0, 7.2],
+      baseRevenuePerHa: 2200,
+      nutrientDemand: { n: 1.05, p: 1.1, k: 1.1 },
+      moistureOpt: [22, 38],
+      omOptMin: 3.2,
     },
   };
 
@@ -611,12 +603,12 @@
     };
 
     const qualityNudge =
-      profile.label === "Овощи"
-        ? "Сделайте акцент на калии для качества и транспортабельности."
-        : profile.label === "Рис"
-          ? "Синхронизируйте азот с кущением и избегайте позднего избытка."
-          : profile.label === "Кукуруза"
-            ? "Делите азот на внесения, чтобы снизить вымывание и повысить усвоение."
+      profile.label === "Картофель"
+        ? "Упор на калий для клубнеобразования и лёжкости; избегайте избытка азота в конце сезона."
+        : profile.label === "Овёс"
+          ? "Кормовая ценность выше при сбалансированном NPK и достаточной влаге в фазу выхода в трубку."
+          : profile.label === "Капуста"
+            ? "Влага и калий важны для плотности кочана и хранения."
             : "Держите сбалансированное внесение по фазам развития.";
 
     const text =
@@ -660,7 +652,7 @@
     const improvementRoom = clamp((100 - score.overall) / 60, 0.05, 1.0);
     const base = 6.5 + improvementRoom * 11.5; // 6.5%..18%
     const cropAdj =
-      profile.label === "Vegetables" ? 1.05 : profile.label === "Corn" ? 1.0 : profile.label === "Rice" ? 0.98 : 0.95;
+      profile.label === "Капуста" ? 1.05 : profile.label === "Картофель" ? 1.0 : profile.label === "Овёс" ? 0.95 : 0.95;
     const jitter = (rng() - 0.5) * 2.2; // +/- 2.2
     const yieldPct = clamp(base * cropAdj + jitter, 5.5, 19.5);
 
