@@ -107,8 +107,8 @@
       attributionControl: false, // скрываем блок "Leaflet | © OpenStreetMap" (без логотипов)
     });
 
-    // Стартовая точка демо: Якутск (РФ). Пользователь может свободно панорамировать/масштабировать.
-    const defaultCenter = [62.0272, 129.7321]; // Якутск
+    // Стартовая точка демо: Виктория, Британская Колумбия (Канада). Пользователь может свободно панорамировать/масштабировать.
+    const defaultCenter = [48.4284, -123.3656]; // Виктория, BC
     map.setView(defaultCenter, 11);
 
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -713,42 +713,46 @@
     return lines.join("\n");
   };
 
+  const setText = (el, text) => { if (el) el.textContent = text; };
+
   const renderResults = ({ profile, soil, areaHa, centerLabel, selectionTypeLabel, score, fert, carePlan, outcomes }) => {
-    kpiYield.textContent = outcomes.yieldPct.toFixed(1);
-    kpiProfit.textContent = formatMoney(outcomes.profit);
-    kpiArea.textContent = areaHa.toFixed(2);
+    try {
+      setText(kpiYield, outcomes.yieldPct.toFixed(1));
+      setText(kpiProfit, formatMoney(outcomes.profit));
+      setText(kpiArea, areaHa.toFixed(2));
+      setText(kpiYieldFoot, outcomes.yieldFoot);
+      setText(kpiProfitFoot, outcomes.profitFoot);
+      setText(kpiAreaFoot, `По вашему выделению (${String(selectionTypeLabel).toLowerCase()})`);
+      setText(resultCropTag, `Культура: ${profile.label}`);
+      setText(fertilizerText, fert.text);
 
-    kpiYieldFoot.textContent = outcomes.yieldFoot;
-    kpiProfitFoot.textContent = outcomes.profitFoot;
-    kpiAreaFoot.textContent = `По вашему выделению (${selectionTypeLabel.toLowerCase()})`;
-
-    resultCropTag.textContent = `Культура: ${profile.label}`;
-    fertilizerText.textContent = fert.text;
-
-    fertilizerChips.innerHTML = "";
-    fert.chips.forEach((c) => {
-      const span = document.createElement("span");
-      span.className = `split-chip${c.tone === "earth" ? " is-earth" : ""}`;
-      span.textContent = c.text;
-      fertilizerChips.appendChild(span);
-    });
-
-    careChecklist.innerHTML = "";
-    carePlan.forEach((t) => {
-      const li = document.createElement("li");
-      li.className = "check";
-      li.innerHTML = `<div class="check__box" aria-hidden="true">✓</div><div class="check__text">${t}</div>`;
-      careChecklist.appendChild(li);
-    });
-
-    sumPh.textContent = soil.ph.toFixed(1);
-    sumNpk.textContent = `${Math.round(soil.n)} / ${Math.round(soil.p)} / ${Math.round(soil.k)}`;
-    sumMoisture.textContent = `${soil.moisture.toFixed(1)}%`;
-    sumOm.textContent = `${soil.om.toFixed(1)}%`;
-    sumCenter.textContent = centerLabel;
-    sumSelection.textContent = selectionTypeLabel;
-
-    setDashboardState(true);
+      if (fertilizerChips) {
+        fertilizerChips.innerHTML = "";
+        (fert.chips || []).forEach((c) => {
+          const span = document.createElement("span");
+          span.className = `split-chip${c.tone === "earth" ? " is-earth" : ""}`;
+          span.textContent = c.text;
+          fertilizerChips.appendChild(span);
+        });
+      }
+      if (careChecklist) {
+        careChecklist.innerHTML = "";
+        (carePlan || []).forEach((t) => {
+          const li = document.createElement("li");
+          li.className = "check";
+          li.innerHTML = `<div class="check__box" aria-hidden="true">✓</div><div class="check__text">${String(t)}</div>`;
+          careChecklist.appendChild(li);
+        });
+      }
+      setText(sumPh, soil.ph.toFixed(1));
+      setText(sumNpk, `${Math.round(soil.n)} / ${Math.round(soil.p)} / ${Math.round(soil.k)}`);
+      setText(sumMoisture, `${soil.moisture.toFixed(1)}%`);
+      setText(sumOm, `${soil.om.toFixed(1)}%`);
+      setText(sumCenter, centerLabel);
+      setText(sumSelection, selectionTypeLabel);
+    } finally {
+      setDashboardState(true);
+    }
 
     shareBtn.onclick = async () => {
       const payload = {
@@ -799,69 +803,84 @@
       $("#results")?.scrollIntoView({ behavior: "smooth", block: "start" });
 
       const profile = CROP_PROFILES[selectedCrop];
-    const areaHa = selectionAreaM2 / 10000;
-    const centerLabel = selectionCenter ? formatLatLng(selectionCenter) : "—";
-    const selectionTypeLabel = selectionType || "Area";
+      if (!profile) {
+        showToast("Неизвестная культура. Выберите картофель, овёс или капусту.");
+        return;
+      }
+      const areaHa = selectionAreaM2 / 10000;
+      const centerLabel = selectionCenter ? formatLatLng(selectionCenter) : "—";
+      const selectionTypeLabel = selectionType || "Area";
 
-    const seedStr = JSON.stringify({
-      crop: selectedCrop,
-      soil,
-      area: round(areaHa, 3),
-      center: centerLabel,
+      const seedStr = JSON.stringify({
+        crop: selectedCrop,
+        soil,
+        area: round(areaHa, 3),
+        center: centerLabel,
+      });
+      const rng = mulberry32(hash32(seedStr));
+
+      const steps = [
+        "Калибруем модель отклика почвы и культуры",
+        "Оцениваем эффективность усвоения питания",
+        "Симулируем сценарии дробного внесения",
+        "Формируем рекомендации и прогноз эффекта",
+      ];
+      if (loadingBar) loadingBar.style.width = "0%";
+      if (loadingSub) loadingSub.textContent = steps[0];
+
+      // Короткая задержка загрузки (надёжно работает везде), затем расчёт и показ результата
+      const loadMs = 1800;
+      await new Promise((resolve) => window.setTimeout(resolve, loadMs));
+      if (loadingBar) loadingBar.style.width = "100%";
+      if (loadingSub && steps[2]) loadingSub.textContent = steps[2];
+
+     // --- Вызов AI backend ---
+     const response = await fetch("https://agro-ai-backend.alexandromir3.workers.dev", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        soil,
+        crop: selectedCrop,
+        area: areaHa,
+        center: centerLabel
+      })
     });
-    const rng = mulberry32(hash32(seedStr));
+    
+    if (!response.ok) {
+      let errorMsg = `Ошибка сервера (${response.status})`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error || errorMsg;
+      } catch {
+        // ignore
+      }
+      throw new Error(errorMsg);
+    }
+    
+    const ai = await response.json();
+    
+    // Проверка наличия обязательных полей
+    if (!ai.fertilizerPlan || typeof ai.yieldIncrease !== "number" || typeof ai.profit !== "number") {
+      throw new Error("Неверный формат ответа от AI");
+    }
+    
+    // AI возвращает:
+    const score = scoreSoil(soil, profile); // можно оставить локально
+    const fert = {
+      text: ai.fertilizerPlan,
+      chips: [],
+      totals: { n: 0, p: 0, k: 0 }
+    };
 
-    const steps = [
-      "Калибруем модель отклика почвы и культуры",
-      "Оцениваем эффективность усвоения питания",
-      "Симулируем сценарии дробного внесения",
-      "Формируем рекомендации и прогноз эффекта",
-    ];
-
-    const totalMs = Math.round(2100 + rng() * 850); // 2–3 seconds
-    const start = performance.now();
-    let stepIdx = 0;
-    let lastStepAt = 0;
-
-    loadingBar.style.width = "0%";
-    loadingSub.textContent = steps[0];
-
-    await new Promise((resolve) => {
-      let resolved = false;
-      const doResolve = () => {
-        if (resolved) return;
-        resolved = true;
-        loadingBar.style.width = "100%";
-        resolve();
-      };
-      const timeoutId = window.setTimeout(doResolve, totalMs + 800);
-      const tick = () => {
-        if (resolved) return;
-        const now = performance.now();
-        const t = clamp((now - start) / totalMs, 0, 1);
-        const eased = 1 - Math.pow(1 - t, 2.4);
-        loadingBar.style.width = `${Math.round(eased * 100)}%`;
-
-        if (now - lastStepAt > 520 && stepIdx < steps.length - 1) {
-          stepIdx++;
-          lastStepAt = now;
-          loadingSub.textContent = steps[stepIdx];
-        }
-
-        if (t >= 1) {
-          window.clearTimeout(timeoutId);
-          doResolve();
-        } else {
-          requestAnimationFrame(tick);
-        }
-      };
-      requestAnimationFrame(tick);
-    });
-
-    const score = scoreSoil(soil, profile);
-    const fert = buildFertilizerPlan(soil, profile, rng);
-    const carePlan = buildCarePlan(soil, profile, score, rng);
-    const outcomes = estimateOutcomes(soil, profile, areaHa, score, rng);
+    const carePlan = ai.carePlan ? ai.carePlan.split("\n").filter(line => line.trim()) : [];
+    const outcomes = {
+      yieldPct: Number(ai.yieldIncrease) || 0,
+      profit: Number(ai.profit) || 0,
+      yieldFoot: "AI-модель рассчитала потенциал отклика почвы.",
+      profitFoot: "Экономический эффект рассчитан на основе модели отклика."
+    };
 
       renderResults({
         profile,
@@ -878,7 +897,8 @@
       console.error("Ошибка анализа:", err);
       setLoadingState(false);
       setDashboardState(false);
-      showToast("Произошла ошибка. Проверьте ввод и попробуйте снова.");
+      const errorMsg = err.message || "Произошла ошибка";
+      showToast(`Ошибка: ${errorMsg}. Проверьте подключение и попробуйте снова.`);
     } finally {
       analysisInFlight = false;
       startBtn.disabled = false;
