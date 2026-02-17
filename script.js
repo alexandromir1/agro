@@ -804,8 +804,7 @@
 
       const profile = CROP_PROFILES[selectedCrop];
       if (!profile) {
-        showToast("Неизвестная культура. Выберите картофель, овёс или капусту.");
-        return;
+        throw new Error("Неизвестная культура. Выберите доступную культуру из списка.");
       }
       const areaHa = selectionAreaM2 / 10000;
       const centerLabel = selectionCenter ? formatLatLng(selectionCenter) : "—";
@@ -835,6 +834,7 @@
       if (loadingSub && steps[2]) loadingSub.textContent = steps[2];
 
      // --- Вызов AI backend ---
+     console.log("Отправка запроса к AI backend...", { soil, crop: selectedCrop, area: areaHa });
      const response = await fetch("https://agro-ai-backend.alexandromir3.workers.dev", {
       method: "POST",
       headers: {
@@ -848,22 +848,28 @@
       })
     });
     
+    console.log("Ответ получен:", response.status, response.statusText);
+    
     if (!response.ok) {
       let errorMsg = `Ошибка сервера (${response.status})`;
       try {
         const errorData = await response.json();
+        console.error("Детали ошибки:", errorData);
         errorMsg = errorData.error || errorMsg;
-      } catch {
-        // ignore
+      } catch (e) {
+        const text = await response.text();
+        console.error("Текст ошибки:", text);
       }
       throw new Error(errorMsg);
     }
     
     const ai = await response.json();
+    console.log("AI ответ:", ai);
     
     // Проверка наличия обязательных полей
     if (!ai.fertilizerPlan || typeof ai.yieldIncrease !== "number" || typeof ai.profit !== "number") {
-      throw new Error("Неверный формат ответа от AI");
+      console.error("Неверная структура ответа:", ai);
+      throw new Error("Неверный формат ответа от AI. Проверьте консоль для деталей.");
     }
     
     // AI возвращает:
@@ -882,23 +888,26 @@
       profitFoot: "Экономический эффект рассчитан на основе модели отклика."
     };
 
-      renderResults({
-        profile,
-        soil,
-        areaHa,
-        centerLabel,
-        selectionTypeLabel,
-        score,
-        fert,
-        carePlan,
-        outcomes,
-      });
+    console.log("Рендеринг результатов...", { outcomes, fert, carePlan });
+    renderResults({
+      profile,
+      soil,
+      areaHa,
+      centerLabel,
+      selectionTypeLabel,
+      score,
+      fert,
+      carePlan,
+      outcomes,
+    });
+    console.log("Результаты отрендерены, dashboard должен быть виден");
     } catch (err) {
       console.error("Ошибка анализа:", err);
+      console.error("Стек ошибки:", err.stack);
       setLoadingState(false);
       setDashboardState(false);
       const errorMsg = err.message || "Произошла ошибка";
-      showToast(`Ошибка: ${errorMsg}. Проверьте подключение и попробуйте снова.`);
+      showToast(`Ошибка: ${errorMsg}. Проверьте консоль браузера (F12) для деталей.`);
     } finally {
       analysisInFlight = false;
       startBtn.disabled = false;
