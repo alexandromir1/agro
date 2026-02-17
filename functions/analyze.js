@@ -67,23 +67,45 @@ K: ${body.soil.k}
     });
     
     if (!response.ok) {
-      const errorData = await response.text();
+      let errorMsg = `OpenAI API error: ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMsg = errorData.error?.message || errorData.error || errorMsg;
+      } catch {
+        const errorText = await response.text();
+        errorMsg = errorText || errorMsg;
+      }
       return new Response(
-        JSON.stringify({ error: `OpenAI API error: ${response.status}` }),
-        { status: response.status, headers: corsHeaders }
+        JSON.stringify({ error: `AI processing error: ${errorMsg}` }),
+        { status: 500, headers: corsHeaders }
       );
     }
     
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (jsonError) {
+      return new Response(
+        JSON.stringify({ error: "Не удалось распарсить ответ от OpenAI" }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       return new Response(
-        JSON.stringify({ error: "Неверный формат ответа от OpenAI" }),
+        JSON.stringify({ error: "Неверный формат ответа от OpenAI. Нет choices[0].message" }),
         { status: 500, headers: corsHeaders }
       );
     }
     
     let text = data.choices[0].message.content.trim();
+    
+    if (!text) {
+      return new Response(
+        JSON.stringify({ error: "Пустой ответ от AI" }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
     
     // Убираем markdown код блоки, если есть
     if (text.startsWith("```json")) {
@@ -98,18 +120,35 @@ K: ${body.soil.k}
       aiResult = JSON.parse(text);
     } catch (parseError) {
       return new Response(
-        JSON.stringify({ error: "Не удалось распарсить JSON ответ" }),
+        JSON.stringify({ 
+          error: `Не удалось распарсить JSON ответ. Текст: ${text.substring(0, 200)}` 
+        }),
         { status: 500, headers: corsHeaders }
       );
     }
     
     // Валидация структуры ответа
-    if (typeof aiResult.yieldIncrease !== "number" || 
-        typeof aiResult.profit !== "number" ||
-        typeof aiResult.fertilizerPlan !== "string" ||
-        typeof aiResult.carePlan !== "string") {
+    if (typeof aiResult.yieldIncrease !== "number") {
       return new Response(
-        JSON.stringify({ error: "Неверная структура ответа от AI" }),
+        JSON.stringify({ error: `Неверный тип yieldIncrease: ${typeof aiResult.yieldIncrease}` }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
+    if (typeof aiResult.profit !== "number") {
+      return new Response(
+        JSON.stringify({ error: `Неверный тип profit: ${typeof aiResult.profit}` }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
+    if (typeof aiResult.fertilizerPlan !== "string") {
+      return new Response(
+        JSON.stringify({ error: `Неверный тип fertilizerPlan: ${typeof aiResult.fertilizerPlan}` }),
+        { status: 500, headers: corsHeaders }
+      );
+    }
+    if (typeof aiResult.carePlan !== "string") {
+      return new Response(
+        JSON.stringify({ error: `Неверный тип carePlan: ${typeof aiResult.carePlan}` }),
         { status: 500, headers: corsHeaders }
       );
     }
@@ -120,7 +159,9 @@ K: ${body.soil.k}
     
   } catch (error) {
     return new Response(
-      JSON.stringify({ error: error.message || "Внутренняя ошибка сервера" }),
+      JSON.stringify({ 
+        error: `Внутренняя ошибка: ${error.message || String(error)}` 
+      }),
       { status: 500, headers: corsHeaders }
     );
   }
