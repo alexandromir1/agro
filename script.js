@@ -835,58 +835,101 @@
 
      // --- Вызов AI backend ---
      console.log("Отправка запроса к AI backend...", { soil, crop: selectedCrop, area: areaHa });
-     const response = await fetch("https://agro-ai-backend.alexandromir3.workers.dev", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        soil,
-        crop: selectedCrop,
-        area: areaHa,
-        center: centerLabel
-      })
-    });
-    
-    console.log("Ответ получен:", response.status, response.statusText);
-    
-    if (!response.ok) {
-      let errorMsg = `Ошибка сервера (${response.status})`;
-      try {
-        const errorData = await response.json();
-        console.error("Детали ошибки:", errorData);
-        errorMsg = errorData.error || errorMsg;
-      } catch (e) {
-        const text = await response.text();
-        console.error("Текст ошибки:", text);
+     
+     let aiResult = null;
+     let useFallback = false;
+     
+     try {
+       const response = await fetch("https://agro-ai-backend.alexandromir3.workers.dev", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          soil,
+          crop: selectedCrop,
+          area: areaHa,
+          center: centerLabel
+        })
+      });
+      
+      console.log("Ответ получен:", response.status, response.statusText);
+      
+      if (response.ok) {
+        const ai = await response.json();
+        console.log("AI ответ:", ai);
+        
+        // Проверка наличия обязательных полей
+        if (ai.fertilizerPlan && typeof ai.yieldIncrease === "number" && typeof ai.profit === "number") {
+          aiResult = ai;
+        } else {
+          console.warn("Неверная структура ответа от AI, используем fallback");
+          useFallback = true;
+        }
+      } else {
+        let errorMsg = `Ошибка сервера (${response.status})`;
+        try {
+          const errorData = await response.json();
+          console.error("Детали ошибки:", errorData);
+          errorMsg = errorData.error || errorMsg;
+          
+          // Если ошибка квоты или недоступности AI - используем fallback
+          if (errorMsg.includes("quota") || errorMsg.includes("billing") || response.status === 429 || response.status === 503) {
+            console.warn("AI недоступен (квота/биллинг), используем локальную симуляцию");
+            useFallback = true;
+          }
+        } catch (e) {
+          const text = await response.text();
+          console.error("Текст ошибки:", text);
+        }
+        
+        if (!useFallback) {
+          throw new Error(errorMsg);
+        }
       }
-      throw new Error(errorMsg);
-    }
-    
-    const ai = await response.json();
-    console.log("AI ответ:", ai);
-    
-    // Проверка наличия обязательных полей
-    if (!ai.fertilizerPlan || typeof ai.yieldIncrease !== "number" || typeof ai.profit !== "number") {
-      console.error("Неверная структура ответа:", ai);
-      throw new Error("Неверный формат ответа от AI. Проверьте консоль для деталей.");
-    }
-    
-    // AI возвращает:
-    const score = scoreSoil(soil, profile); // можно оставить локально
-    const fert = {
-      text: ai.fertilizerPlan,
-      chips: [],
-      totals: { n: 0, p: 0, k: 0 }
-    };
+     } catch (fetchError) {
+       console.warn("Ошибка при запросе к AI backend, используем fallback:", fetchError);
+       useFallback = true;
+     }
+     
+     // Fallback: локальная симуляция (если AI недоступен)
+     if (useFallback || !aiResult) {
+       console.log("Используем локальную симуляцию результатов");
+       const score = scoreSoil(soil, profile);
+       const fert = buildFertilizerPlan(soil, profile, rng);
+       const carePlan = buildCarePlan(soil, profile, score, rng);
+       const outcomes = estimateOutcomes(soil, profile, areaHa, score, rng);
+       
+       renderResults({
+         profile,
+         soil,
+         areaHa,
+         centerLabel,
+         selectionTypeLabel,
+         score,
+         fert,
+         carePlan,
+         outcomes,
+       });
+       console.log("Результаты отрендерены (fallback), dashboard должен быть виден");
+       return; // Выходим раньше, не попадаем в catch
+     }
+     
+     // Используем результаты от AI
+     const score = scoreSoil(soil, profile);
+     const fert = {
+       text: aiResult.fertilizerPlan,
+       chips: [],
+       totals: { n: 0, p: 0, k: 0 }
+     };
 
-    const carePlan = ai.carePlan ? ai.carePlan.split("\n").filter(line => line.trim()) : [];
-    const outcomes = {
-      yieldPct: Number(ai.yieldIncrease) || 0,
-      profit: Number(ai.profit) || 0,
-      yieldFoot: "AI-модель рассчитала потенциал отклика почвы.",
-      profitFoot: "Экономический эффект рассчитан на основе модели отклика."
-    };
+     const carePlan = aiResult.carePlan ? aiResult.carePlan.split("\n").filter(line => line.trim()) : [];
+     const outcomes = {
+       yieldPct: Number(aiResult.yieldIncrease) || 0,
+       profit: Number(aiResult.profit) || 0,
+       yieldFoot: "AI-модель рассчитала потенциал отклика почвы.",
+       profitFoot: "Экономический эффект рассчитан на основе модели отклика."
+     };
 
     console.log("Рендеринг результатов...", { outcomes, fert, carePlan });
     renderResults({
